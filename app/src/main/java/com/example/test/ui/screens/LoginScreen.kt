@@ -307,7 +307,7 @@ fun LoginScreen(
                                     onClick = {
                                         buttonClicked = !buttonClicked
                                         navController.navigate(Routers.HOME)
-                                        scope.launch {
+                                        /*scope.launch {
                                             try {
                                                 val users = RetrofitInstance.api.getUsers()
                                                 val userExists = users.any { user ->
@@ -322,7 +322,7 @@ fun LoginScreen(
                                             } catch (e: Exception) {
                                                 snackbarHostState.showSnackbar("Erreur : ${e.message}")
                                             }
-                                        }
+                                        }*/
                                     },
                                     modifier = Modifier
                                         .fillMaxWidth()
