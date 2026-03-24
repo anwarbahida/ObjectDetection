@@ -36,48 +36,46 @@ fun NavHost(modifier: Modifier = Modifier) {
         composable(Routers.REGISTER) {
             RegisterScreen(
                 navController = navControlleur
-                // ❌ pas besoin, c'est un écran d'inscription
+
             )
         }
 
         composable(Routers.PROFILE) {
             ProfileScreen(
                 navController = navControlleur,
-                userViewModel = userViewModel  // ✅ ajouté
+                userViewModel = userViewModel                 // besoin de données utilisateur
             )
         }
 
         composable(Routers.DETECTION) {
             DetectionScreen(
                 navController = navControlleur
-                // ❌ pas besoin, pas de données utilisateur
             )
         }
 
         composable(Routers.DETECTIONS) {
             DetectionsScreen(
                 navController = navControlleur
-                // ❌ pas besoin, pas de données utilisateur
             )
         }
 
         composable(Routers.POSTS) {
             PostScreen(
                 navController = navControlleur,
-                userViewModel = userViewModel  // ✅ ajouté (pour l'avatar initiale)
+                userViewModel = userViewModel   // besoin de données utilisateur
             )
         }
 
         composable(Routers.APROPOS) {
             AProposScreen(
-                navController = navControlleur // ✅ ajouté (pour l'avatar initiale)
+                navController = navControlleur
             )
         }
 
         composable(Routers.USER) {
             UserScreen(
                 navController = navControlleur,
-                userViewModel = userViewModel // ✅ ajouté (pour l'avatar initiale)
+                userViewModel = userViewModel   // besoin de données utilisateur
             )
         }
 

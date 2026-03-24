@@ -11,8 +11,4 @@ object Routers {
     const val APROPOS = "apropos"
     const val POSTS = "post"
     const val USER = "user"
-
-
-
-
 }

@@ -39,7 +39,7 @@ fun AProposScreen(navController: NavController) {
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope       = rememberCoroutineScope()
-    var visible     by remember { mutableStateOf(false) }
+    var visible by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { visible = true }
 
@@ -89,7 +89,7 @@ fun AProposScreen(navController: NavController) {
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
 
-                // ── Hero / Logo ──────────────────────────────
+                // ── Logo ──────────────────────────────
                 item {
                     AnimatedVisibility(
                         visible = visible,
@@ -193,7 +193,7 @@ fun AProposScreen(navController: NavController) {
                             InfoRow(label = "Nom",      value = "Anwar Bahida")
                             InfoRow(label = "Rôle",     value = "Développeur Mobile")
                             InfoRow(label = "Stack",    value = "Android / Kotlin")
-                            InfoRow(label = "Contact",  value = "anwar.bahida.cont@b3g.com")
+                            InfoRow(label = "Contact",  value = "anwar.bahida@b3g.com")
                         }
                     }
                 }
