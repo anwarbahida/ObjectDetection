@@ -20,24 +20,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
-            val drawerState = rememberDrawerState(DrawerValue.Closed)
-            val navController = rememberNavController()
-
-            val scope = rememberCoroutineScope()
-
-            var showDetection by remember { mutableStateOf(false) }
-            ModalNavigationDrawer(
-                drawerState = drawerState,
-                drawerContent = {
-                    DrawerMenu(
-                        navController    = navController,
-                        onClose          = { scope.launch { drawerState.close() } },
-                        onDetectionClick = { showDetection = true }
-                    )
-                }
-            ) {
             NavHost()
-            }
         }
     }
 }

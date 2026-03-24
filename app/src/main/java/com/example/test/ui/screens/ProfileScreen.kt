@@ -37,7 +37,8 @@ private val AccentBlue     = Color(0xFF14C7EA)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreen(navController: NavController) {
+fun ProfileScreen(navController: NavController,
+                  userViewModel: UserViewModel ) {
 
    val drawerState = rememberDrawerState(DrawerValue.Closed)
    val scope       = rememberCoroutineScope()

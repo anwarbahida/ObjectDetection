@@ -8,8 +8,10 @@ object Routers {
     const val DETECTION = "detection"
     const val DETECTIONS = "detections"
     const val PROFILE = "profile"
-
+    const val APROPOS = "apropos"
     const val POSTS = "post"
+    const val USER = "user"
+
 
 
 

@@ -29,9 +29,6 @@ class LoginViewModel : ViewModel() {
     var loginState by mutableStateOf<LoginState>(LoginState.Idle)
         private set
 
-    fun onEmailChange(newEmail: String)       { email = newEmail }
-    fun onPasswordChange(newPassword: String) { password = newPassword }
-
     // ← context passé depuis le Screen
     fun login(context: Context) {
         if (email.isBlank() || password.isBlank()) {

@@ -1,9 +1,15 @@
 package com.example.test.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -21,7 +27,6 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.test.ui.navigation.Routers
-import org.intellij.lang.annotations.JdkConstants
 
 private val DarkSurface  = Color(0xFF1A1A2E)
 private val AccentPurple = Color(0xFF7C4DFF)
@@ -33,13 +38,16 @@ private val TextPrimary  = Color(0xFFE0E0E0)
 fun DrawerMenu(
     navController: NavController,
     onClose: () -> Unit,
-    onDetectionClick: () -> Unit = {      // ← valeur par défaut simple
+    onDetectionClick: () -> Unit = {
         navController.navigate(Routers.DETECTION)
     }
 ) {
     ModalDrawerSheet(
         drawerContainerColor = DarkSurface,
-        modifier = Modifier.width(250.dp)
+
+        modifier = Modifier.width(250.dp).fillMaxHeight()
+            .verticalScroll(rememberScrollState())
+
     ) {
 
         // ── Header ──────────────────────────────────
@@ -52,11 +60,9 @@ fun DrawerMenu(
                     )
                 )
                 .padding(24.dp)
-
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally
-
             ) {
                 Box(
                     modifier = Modifier
@@ -64,7 +70,6 @@ fun DrawerMenu(
                         .clip(CircleShape)
                         .background(Color.White.copy(alpha = 0.2f)),
                     contentAlignment = Alignment.Center,
-
                 ) {
                     AsyncImage(
                         model = "https://randomuser.me/api/portraits/men/1.jpg",
@@ -102,33 +107,32 @@ fun DrawerMenu(
                 }
             }
         )
+
         DrawerItem(
             icon    = Icons.Default.People,
             label   = "Utilisateurs",
             color   = AccentBlue,
-            onClick = { onClose() }
+            onClick = { onClose()
+                navController.navigate(Routers.USER) }
         )
         DrawerItem(
             icon    = Icons.Default.ImageSearch,
-            label   = "Détecter un Objet",
+            label   = "Détecter un Objet (photo)",
             color   = AccentBlue,
             onClick = {
                 onClose()
                 navController.navigate(Routers.DETECTION)
-//                onDetectionClick()
             }
         )
-
         DrawerItem(
             icon    = Icons.Default.DocumentScanner,
-            label   = "Détecter un Objet (Local)",
+            label   = "Détecter un Objet (védio)",
             color   = AccentBlue,
             onClick = {
                 onClose()
                 navController.navigate(Routers.DETECTIONS)
             }
         )
-
         DrawerItem(
             icon    = Icons.Default.Person,
             label   = "Profile",
@@ -138,7 +142,6 @@ fun DrawerMenu(
                 navController.navigate(Routers.PROFILE)
             }
         )
-
         DrawerItem(
             icon    = Icons.Default.Article,
             label   = "Posts",
@@ -148,14 +151,13 @@ fun DrawerMenu(
                 navController.navigate(Routers.POSTS)
             }
         )
-
         DrawerItem(
             icon    = Icons.Default.Info,
             label   = "À propos",
             color   = AccentGreen,
             onClick = {
                 onClose()
-                navController.navigate(Routers.REGISTER)
+                navController.navigate(Routers.APROPOS)
             }
         )
 
@@ -179,35 +181,49 @@ fun DrawerMenu(
 }
 
 // ─────────────────────────────────────────────────────────────────
-// DrawerItem
+// DrawerItem avec effet hover au clic
 // ─────────────────────────────────────────────────────────────────
 @Composable
 fun DrawerItem(
-    icon: ImageVector,
-    label: String,
-    color: Color,
+    icon   : ImageVector,
+    label  : String,
+    color  : Color,
     onClick: () -> Unit
 ) {
+    // ✅ Détecter si le bouton est pressé
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    // ✅ Couleur de fond dynamique selon l'état
+    val backgroundColor = when {
+        isPressed -> color.copy(alpha = 0.15f)
+        else      -> Color.Transparent
+    }
+
     NavigationDrawerItem(
         icon = {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = color
+                // ✅ L'icône s'illumine au clic
+                tint = if (isPressed) color else color.copy(alpha = 0.7f)
             )
         },
         label = {
             Text(
                 text = label,
-                color = TextPrimary,
-                fontWeight = FontWeight.Medium
+                // ✅ Le texte s'illumine au clic
+                color = if (isPressed) Color.White else TextPrimary,
+                fontWeight = if (isPressed) FontWeight.Bold else FontWeight.Medium
             )
         },
         selected = false,
         onClick = onClick,
         modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+        interactionSource = interactionSource, // ✅ Lier l'interactionSource
         colors = NavigationDrawerItemDefaults.colors(
-            unselectedContainerColor = Color.Transparent
+            // ✅ Fond dynamique
+            unselectedContainerColor = backgroundColor
         )
     )
 }

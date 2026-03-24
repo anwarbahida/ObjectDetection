@@ -3,9 +3,12 @@ package com.example.test.ui.viewmodel
 import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
-import com.example.test.data.model.User
+import com.example.test.data.model.*
+import com.example.test.data.repository.UserRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import retrofit2.Response
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 data class LoggedUser(
@@ -21,12 +24,11 @@ data class LoggedUser(
 
 class UserViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val prefs = application.getSharedPreferences(
-        "user_prefs", Context.MODE_PRIVATE
-    )
-
+    private val prefs = application.getSharedPreferences("user_prefs", Context.MODE_PRIVATE)
     private val _user = MutableStateFlow(LoggedUser())
-    val user: StateFlow<LoggedUser> = _user.asStateFlow()
+    val user = _user.asStateFlow()
+
+    val repository = UserRepository()  // exposé publiquement pour Compose
 
     init {
         loadUser()
@@ -34,19 +36,26 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun loadUser() {
         _user.value = LoggedUser(
-            id       = prefs.getInt   ("user_id",  0),
-            name     = prefs.getString("name",     "") ?: "",
-            email    = prefs.getString("email",    "") ?: "",
+            id = prefs.getInt("user_id", 0),
+            name = prefs.getString("name", "") ?: "",
+            email = prefs.getString("email", "") ?: "",
             username = prefs.getString("username", "") ?: "",
-            phone    = prefs.getString("phone",    "") ?: "",
-            website  = prefs.getString("website",  "") ?: "",
-            company  = prefs.getString("company",  "") ?: "",
-            city     = prefs.getString("city",     "") ?: ""
+            phone = prefs.getString("phone", "") ?: "",
+            website = prefs.getString("website", "") ?: "",
+            company = prefs.getString("company", "") ?: "",
+            city = prefs.getString("city", "") ?: ""
         )
     }
 
     fun logout() {
         prefs.edit().clear().apply()
         _user.value = LoggedUser()
+    }
+
+    // ── Nouvelle fonction pour créer un utilisateur et retourner Response<User>
+    suspend fun createUser(user: User): Response<User> {
+        return withContext(Dispatchers.IO) {
+            repository.createUser(user)
+        }
     }
 }

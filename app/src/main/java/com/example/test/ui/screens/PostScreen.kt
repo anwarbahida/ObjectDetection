@@ -26,6 +26,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.test.data.model.Post
 import com.example.test.ui.viewmodel.PostViewModel
+import com.example.test.ui.viewmodel.UserViewModel
 import kotlinx.coroutines.launch
 
 private val DarkBackground  = Color(0xFF0F0F1A)
@@ -38,12 +39,21 @@ private val TextSecondary   = Color(0xFF9E9E9E)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PostScreen(navController: NavController) {
+fun PostScreen(
+    navController: NavController,
+    userViewModel: UserViewModel
+) {
 
     val viewModel: PostViewModel = viewModel()
     val posts     = viewModel.posts
     val isLoading = viewModel.isLoading
     val error     = viewModel.errorMessage
+
+    // ✅ Récupérer les données de l'utilisateur connecté
+    val user by userViewModel.user.collectAsState()
+
+    // ✅ Initiale de l'utilisateur pour l'avatar
+    val userInitial = user.name.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope       = rememberCoroutineScope()
@@ -54,7 +64,12 @@ fun PostScreen(navController: NavController) {
 
     ModalNavigationDrawer(
         drawerState = drawerState,
-        drawerContent = { }
+        drawerContent = {
+            DrawerMenu(
+                navController = navController,
+                onClose = { scope.launch { drawerState.close() } }
+            )
+        }
     ) {
 
         Scaffold(
@@ -72,7 +87,9 @@ fun PostScreen(navController: NavController) {
                     },
 
                     navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                        IconButton(
+                            onClick = { scope.launch { drawerState.open() } }
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Menu,
                                 contentDescription = "Menu",
@@ -131,7 +148,6 @@ fun PostScreen(navController: NavController) {
                             modifier = Modifier.align(Alignment.Center),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-
                             Icon(
                                 imageVector = Icons.Default.ErrorOutline,
                                 contentDescription = null,
@@ -148,22 +164,18 @@ fun PostScreen(navController: NavController) {
                     }
 
                     else -> {
-
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-
                             itemsIndexed(posts) { index, post ->
-
                                 AnimatedVisibility(
                                     visible = visible,
                                     enter = fadeIn(tween(300)) +
                                             slideInVertically(initialOffsetY = { 40 })
                                 ) {
-
                                     PostCard(post)
                                 }
                             }
@@ -183,15 +195,12 @@ fun PostCard(post: Post) {
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = DarkCard)
     ) {
-
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
-
                 Icon(
                     imageVector = Icons.Default.Article,
                     contentDescription = null,

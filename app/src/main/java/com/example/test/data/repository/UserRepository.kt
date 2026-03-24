@@ -41,6 +41,7 @@ class UserRepository {
                     && user.name == password
         }
     }
-
+    suspend fun createUser(user: User) =
+        api.createUser(user)
 
 }

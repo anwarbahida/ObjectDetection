@@ -1,13 +1,18 @@
 package com.example.test.ui.screens
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.net.Uri
+import android.Manifest
+import android.content.pm.PackageManager
+import android.media.MediaPlayer
+import android.provider.MediaStore
+import android.speech.tts.TextToSpeech
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.*
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,108 +27,131 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import com.example.test.ml.ObjectDetectorHelper
-import com.example.test.ui.navigation.Routers
+import com.example.test.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.Locale
+import java.util.concurrent.Executors
 
-// Couleurs (définies localement ou importées d'un fichier theme)
+
 private val DarkBackground = Color(0xFF0F0F1A)
 private val DarkSurface    = Color(0xFF1A1A2E)
 private val AccentPurple   = Color(0xFF7C4DFF)
 private val AccentBlue     = Color(0xFF14C7EA)
+private val AccentGreen    = Color(0xFF00E676)
 private val TextPrimary    = Color(0xFFE0E0E0)
 private val TextSecondary  = Color(0xFF9E9E9E)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DetectionsScreen(navController: NavController) {
-    val context = LocalContext.current
-    val detector = remember { ObjectDetectorHelper(context) }
 
-    var resultText by remember { mutableStateOf("") }
-    var bitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var isLoading by remember { mutableStateOf(false) }
+    val context        = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val detector       = remember { ObjectDetectorHelper(context) }
+    val scope          = rememberCoroutineScope()
+    val drawerState    = rememberDrawerState(DrawerValue.Closed)
 
-    val drawerState = rememberDrawerState(DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
+    var detections  by remember { mutableStateOf<List<Pair<String, Int>>>(emptyList()) }
+    var isSpeaking  by remember { mutableStateOf(false) }
 
-    // Transformation du texte en liste de paires (label, score)
-    val detections = remember(resultText) {
-        resultText.split("\n").mapNotNull { line ->
-            val parts = line.split(" : ")
-            if (parts.size == 2) {
-                val label = parts[0]
-                val score = parts[1].removeSuffix("%").toIntOrNull() ?: 0
-                label to score
-            } else null
-        }
+    // ✅ Garde-fous anti-spam vocal
+    var lastSpokenLabel by remember { mutableStateOf("") }
+    var lastSpokenTime  by remember { mutableStateOf(0L) }
+
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context, Manifest.permission.CAMERA
+            ) == PackageManager.PERMISSION_GRANTED
+        )
     }
 
-    // Lanceur galerie
-    val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let {
-            isLoading = true
-            val inputStream = context.contentResolver.openInputStream(uri)
-            val image = BitmapFactory.decodeStream(inputStream)
-            bitmap = image
-            scope.launch {
-                // Petit délai pour voir l'animation de chargement
-                delay(500)
-                val results = detector.detect(image)
-                resultText = results.joinToString("\n") {
-                    val label = it.categories[0].label
-                    val score = it.categories[0].score
-                    "$label : ${(score * 100).toInt()}%"
-                }
-                isLoading = false
+    // ── TextToSpeech ─────────────────────────────────
+    val tts = remember {
+        var instance: TextToSpeech? = null
+        instance = TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                instance?.language = Locale.FRENCH
+                instance?.setSpeechRate(0.85f)  // ✅ vitesse naturelle
+                instance?.setPitch(1.0f)
             }
         }
+        instance
     }
 
-    // Lanceur caméra
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview()
-    ) { imageBitmap: Bitmap? ->
-        imageBitmap?.let {
-            isLoading = true
-            bitmap = it
-            scope.launch {
-                delay(500)
-                val results = detector.detect(it)
-                resultText = results.joinToString("\n") {
-                    val label = it.categories[0].label
-                    val score = it.categories[0].score
-
-                    "$label : ${(score * 100).toInt()}%"
-                }
-                isLoading = false
-            }
+    DisposableEffect(Unit) {
+        onDispose {
+            tts?.stop()
+            tts?.shutdown()
         }
     }
 
-    // Effacement de l'image et des résultats
-    fun clearAll() {
-        bitmap = null
-        resultText = ""
+    // ── Executor caméra ──────────────────────────────
+    val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
+
+    DisposableEffect(Unit) {
+        onDispose { cameraExecutor.shutdown() }
     }
 
+    fun speakIfNew(label: String, score: Int) {
+        val now = System.currentTimeMillis()
+
+        // Protection 1 — TTS encore en train de parler
+        if (tts?.isSpeaking == true) return
+
+        // Protection 2 — même objet dans les 5 dernières secondes
+        if (label == lastSpokenLabel && now - lastSpokenTime < 5000) return
+
+        lastSpokenLabel = label
+        lastSpokenTime  = now
+        isSpeaking      = true
+
+        val text: String
+
+        if (label == "person") {
+            text = "Attention : une personne a été détectée devant vous."
+
+            // Lecture du son d'alerte
+            val mediaPlayer = MediaPlayer.create(context, R.raw.alert)
+            mediaPlayer.start()
+            mediaPlayer.setOnCompletionListener { mp -> mp.release() }
+
+        } else {
+            text = "J'ai détecté : $label"
+        }
+
+        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "live_detection")
+
+        scope.launch {
+            delay(4000) // Protection 3 — cooldown 4s avant de reparler
+            isSpeaking = false
+        }
+    }
+
+    // ── Permission launcher ──────────────────────────
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasCameraPermission = granted
+    }
+
+    // ── UI ───────────────────────────────────────────
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
             DrawerMenu(
-                navController = navController,
-                onClose = { scope.launch { drawerState.close() } },
-                // Sur l'écran de détection, on évite de renaviguer vers la même page
+                navController    = navController,
+                onClose          = { scope.launch { drawerState.close() } },
                 onDetectionClick = { scope.launch { drawerState.close() } }
             )
         }
@@ -134,148 +162,319 @@ fun DetectionsScreen(navController: NavController) {
                 TopAppBar(
                     title = {
                         Text(
-                            text = "Détection d'objets",
-                            color = TextPrimary,
+                            text       = "Détection en direct",
+                            color      = TextPrimary,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp
+                            fontSize   = 20.sp
                         )
                     },
                     navigationIcon = {
                         IconButton(onClick = { scope.launch { drawerState.open() } }) {
                             Icon(
-                                imageVector = Icons.Default.Menu,
+                                imageVector    = Icons.Default.Menu,
                                 contentDescription = "Menu",
-                                tint = AccentPurple
+                                tint           = AccentPurple
                             )
                         }
                     },
                     actions = {
-                        if (bitmap != null) {
-                            IconButton(onClick = { clearAll() }) {
+                        // ✅ Indicateur vocal animé
+                        AnimatedVisibility(
+                            visible = isSpeaking,
+                            enter   = fadeIn() + scaleIn(),
+                            exit    = fadeOut() + scaleOut()
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .padding(end = 12.dp)
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(AccentBlue.copy(alpha = 0.15f))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
                                 Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = "Effacer",
-                                    tint = AccentPurple
+                                    imageVector    = Icons.Default.VolumeUp,
+                                    contentDescription = "Parle",
+                                    tint           = AccentBlue,
+                                    modifier       = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text      = "Parle...",
+                                    color     = AccentBlue,
+                                    fontSize  = 12.sp,
+                                    fontWeight = FontWeight.Medium
                                 )
                             }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = DarkSurface,
-                        titleContentColor = TextPrimary
+                        containerColor = DarkSurface
                     )
                 )
-            },
-            floatingActionButton = {
-                Column(
-
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-
-                ) {
-                    FloatingActionButton(
-                        onClick = { cameraLauncher.launch(null) },
-                        containerColor = AccentPurple,
-                        shape = CircleShape
-                    ) {
-                        Icon(Icons.Default.CameraAlt, contentDescription = "Caméra", tint = Color.White)
-                    }
-                    FloatingActionButton(
-                        onClick = { galleryLauncher.launch("image/*") },
-                        containerColor = AccentBlue,
-                        shape = CircleShape
-                    ) {
-                        Icon(Icons.Default.Photo, contentDescription = "Galerie", tint = Color.White)
-                    }
-                }
             }
         ) { paddingValues ->
-            Box(
+
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
                     .background(DarkBackground)
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Column(
+
+                // ── Aperçu caméra ────────────────────────────
+                Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .fillMaxWidth()
+                        .height(340.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(DarkSurface)
                 ) {
-                    // Affichage de l'image
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(250.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(DarkSurface)
-                    ) {
-                        if (bitmap != null) {
-                            Image(
-                                bitmap = bitmap!!.asImageBitmap(),
-                                contentDescription = "Image sélectionnée",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
+                    if (hasCameraPermission) {
+
+                        // ✅ CameraX Preview + ImageAnalysis
+                        AndroidView(
+                            factory = { ctx ->
+                                val previewView = PreviewView(ctx)
+                                val cameraProviderFuture =
+                                    ProcessCameraProvider.getInstance(ctx)
+
+                                cameraProviderFuture.addListener({
+                                    val cameraProvider = cameraProviderFuture.get()
+
+                                    val preview = Preview.Builder().build().also {
+                                        it.setSurfaceProvider(previewView.surfaceProvider)
+                                    }
+
+                                    val imageAnalyzer = ImageAnalysis.Builder()
+                                        .setBackpressureStrategy(
+                                            ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST
+                                        )
+                                        .build()
+                                        .also { analysis ->
+                                            analysis.setAnalyzer(cameraExecutor) { imageProxy ->
+
+                                                // ✅ Ignorer si TTS parle encore
+                                                if (tts?.isSpeaking == true) {
+                                                    imageProxy.close()
+                                                    return@setAnalyzer
+                                                }
+
+                                                // ✅ Max 1 analyse par seconde
+                                                val now = System.currentTimeMillis()
+                                                if (now - lastSpokenTime < 1000) {
+                                                    imageProxy.close()
+                                                    return@setAnalyzer
+                                                }
+
+                                                val bitmap = imageProxy.toBitmap()
+
+                                                try {
+                                                    val results = detector.detect(bitmap)
+
+                                                    if (results.isNotEmpty()) {
+                                                        val topLabel = results[0].categories[0].label
+                                                        val topScore = (results[0].categories[0].score * 100).toInt()
+
+                                                        detections = results.map {
+                                                            it.categories[0].label to
+                                                                    (it.categories[0].score * 100).toInt()
+                                                        }
+
+                                                        speakIfNew(topLabel, topScore)
+
+                                                    } else {
+                                                        detections = emptyList()
+                                                    }
+
+                                                } catch (e: Exception) {
+                                                    Log.e("Detection", "Erreur : ${e.message}")
+                                                } finally {
+                                                    imageProxy.close()
+                                                }
+                                            }
+                                        }
+
+                                    try {
+                                        cameraProvider.unbindAll()
+                                        cameraProvider.bindToLifecycle(
+                                            lifecycleOwner,
+                                            CameraSelector.DEFAULT_BACK_CAMERA,
+                                            preview,
+                                            imageAnalyzer
+                                        )
+                                    } catch (e: Exception) {
+                                        Log.e("CameraX", "Erreur bind : ${e.message}")
+                                    }
+
+                                }, ContextCompat.getMainExecutor(ctx))
+
+                                previewView
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+
+                        // ✅ Badge EN DIRECT
+                        Box(
+                            modifier = Modifier
+                                .padding(12.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Color.Red.copy(alpha = 0.85f))
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                                .align(Alignment.TopStart)
+                        ) {
+                            Text(
+                                text       = "● EN DIRECT",
+                                color      = Color.White,
+                                fontSize   = 11.sp,
+                                fontWeight = FontWeight.Bold
                             )
-                            if (isLoading) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(Color.Black.copy(alpha = 0.5f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    CircularProgressIndicator(color = AccentPurple)
+                        }
+
+                        // ✅ Badge nombre d'objets détectés
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = detections.isNotEmpty(),
+                            enter   = fadeIn() + slideInVertically { it },
+                            exit    = fadeOut() + slideOutVertically { it },
+                            modifier = Modifier.align(Alignment.BottomStart)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .padding(12.dp)
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(AccentPurple.copy(alpha = 0.9f))
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text       = "✔ ${detections.size} objet(s) détecté(s)",
+                                    color      = Color.White,
+                                    fontSize   = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        // ✅ Indicateur vocal sur la vidéo
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = isSpeaking,
+                            enter   = fadeIn() + slideInVertically { -it },
+                            exit    = fadeOut() + slideOutVertically { -it },
+                            modifier = Modifier.align(Alignment.TopEnd)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .padding(12.dp)
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(AccentBlue.copy(alpha = 0.9f))
+                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector    = Icons.Default.VolumeUp,
+                                        contentDescription = null,
+                                        tint           = Color.White,
+                                        modifier       = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text      = "Parle...",
+                                        color     = Color.White,
+                                        fontSize  = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
-                        } else {
-                            Column(
-                                modifier = Modifier.fillMaxSize(),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
+                        }
+
+                    } else {
+
+                        // ✅ Écran demande de permission
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector    = Icons.Default.CameraAlt,
+                                contentDescription = null,
+                                tint           = TextSecondary,
+                                modifier       = Modifier.size(64.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text     = "Permission caméra requise",
+                                color    = TextSecondary,
+                                fontSize = 15.sp
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = {
+                                    permissionLauncher.launch(Manifest.permission.CAMERA)
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = AccentPurple
+                                ),
+                                shape = RoundedCornerShape(12.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Image,
+                                    imageVector    = Icons.Default.CameraAlt,
                                     contentDescription = null,
-                                    tint = TextSecondary,
-                                    modifier = Modifier.size(64.dp)
+                                    tint           = Color.White,
+                                    modifier       = Modifier.size(18.dp)
                                 )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "Aucune image sélectionnée",
-                                    color = TextSecondary,
-                                    fontSize = 16.sp
-                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Autoriser la caméra", color = Color.White)
                             }
                         }
                     }
+                }
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                    // Liste des détections
-                    AnimatedVisibility(
-                        visible = detections.isNotEmpty() && !isLoading,
-                        enter = fadeIn(animationSpec = tween(500)) + slideInVertically(),
-                        exit = fadeOut()
+                // ── Liste détections ─────────────────────────
+                AnimatedVisibility(
+                    visible = detections.isNotEmpty(),
+                    enter   = fadeIn(tween(300)) + slideInVertically(),
+                    exit    = fadeOut(tween(300))
+                ) {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            items(detections) { detection ->
-                                DetectionCard(label = detection.first, score = detection.second)
-                            }
+                        items(detections) { detection ->
+                            DetectionCard(
+                                label = detection.first,
+                                score = detection.second
+                            )
                         }
                     }
+                }
 
-                    // Message si aucune détection
-                    AnimatedVisibility(
-                        visible = bitmap != null && !isLoading && detections.isEmpty()
+                // ── Message si rien détecté ──────────────────
+                AnimatedVisibility(
+                    visible = detections.isEmpty() && hasCameraPermission,
+                    enter   = fadeIn(tween(300)),
+                    exit    = fadeOut(tween(300))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        Icon(
+                            imageVector    = Icons.Default.Search,
+                            contentDescription = null,
+                            tint           = TextSecondary,
+                            modifier       = Modifier.size(40.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Aucun objet détecté",
-                            color = TextSecondary,
-                            fontSize = 16.sp,
-                            modifier = Modifier.padding(16.dp)
+                            text     = "Pointez la caméra vers un objet...",
+                            color    = TextSecondary,
+                            fontSize = 15.sp
                         )
                     }
                 }
@@ -284,13 +483,22 @@ fun DetectionsScreen(navController: NavController) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────
+// DetectionCard
+// ─────────────────────────────────────────────────────────────────
 @Composable
 fun DetectionCard(label: String, score: Int) {
 
+    val progressColor = when {
+        score >= 80 -> AccentGreen
+        score >= 50 -> AccentBlue
+        else        -> AccentPurple
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = DarkSurface),
-        shape = RoundedCornerShape(12.dp)
+        colors   = CardDefaults.cardColors(containerColor = DarkSurface),
+        shape    = RoundedCornerShape(14.dp)
     ) {
         Row(
             modifier = Modifier
@@ -298,39 +506,51 @@ fun DetectionCard(label: String, score: Int) {
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Default.Label,
-                contentDescription = null,
-                tint = AccentPurple,
-                modifier = Modifier.size(24.dp)
-            )
+            // ✅ Icône colorée selon le score
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(progressColor.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector    = Icons.Default.Label,
+                    contentDescription = null,
+                    tint           = progressColor,
+                    modifier       = Modifier.size(22.dp)
+                )
+            }
+
             Spacer(modifier = Modifier.width(12.dp))
+
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = label,
-                    color = TextPrimary,
+                    text       = label,
+                    color      = TextPrimary,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
+                    fontSize   = 16.sp
                 )
                 Text(
-                    text = "Confiance",
-                    color = TextSecondary,
+                    text     = "Confiance",
+                    color    = TextSecondary,
                     fontSize = 12.sp
                 )
             }
+
+            // ✅ Cercle de progression coloré selon le score
             Box(contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(
-                    progress = { score/ 100f },
-                    modifier = Modifier.size(48.dp),
-                    color = AccentBlue,
-                    trackColor = DarkBackground,
+                    progress    = { score / 100f },
+                    modifier    = Modifier.size(52.dp),
+                    color       = progressColor,
+                    trackColor  = DarkBackground,
                     strokeWidth = 4.dp
                 )
                 Text(
-
-                    text = "$score%",
-                    color = TextPrimary,
-                    fontSize = 12.sp,
+                    text       = "$score%",
+                    color      = TextPrimary,
+                    fontSize   = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
