@@ -28,7 +28,7 @@ import kotlinx.coroutines.launch
 private val DarkBackground = Color(0xFF0F0F1A)
 private val DarkSurface    = Color(0xFF1A1A2E)
 private val DarkCard       = Color(0xFF16213E)
-private val AccentPurple   = Color(0xFF7C4DFF)
+private val AccentPurple   = Color(0xFF5A26E8)
 private val AccentBlue     = Color(0xFF14C7EA)
 private val AccentGreen    = Color(0xFF00E676)
 private val AccentOrange   = Color(0xFFFF6D00)
@@ -67,7 +67,14 @@ fun HomeScreen(navController: NavController) {
                         )
                     },
                     navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                        IconButton(
+                            onClick = {
+                                scope.launch {
+                                    drawerState.open()
+                                }
+                            }
+                        )
+                        {
                             Icon(
                                 imageVector = Icons.Default.Menu,
                                 contentDescription = "Menu",
@@ -146,11 +153,7 @@ fun HomeScreen(navController: NavController) {
                                             fontWeight = FontWeight.Bold
                                         )
                                         Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = "Bonne journée !",
-                                            color = Color.White.copy(alpha = 0.7f),
-                                            fontSize = 13.sp
-                                        )
+
                                     }
                                 }
                             }

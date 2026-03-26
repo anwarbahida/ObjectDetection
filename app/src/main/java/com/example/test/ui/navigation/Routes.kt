@@ -4,6 +4,7 @@ object Routers {
 
     const val LOGIN = "login"
     const val HOME = "home"
+    const val PRET = "pret"
     const val REGISTER = "register"
     const val DETECTION = "detection"
     const val DETECTIONS = "detections"
@@ -11,4 +12,5 @@ object Routers {
     const val APROPOS = "apropos"
     const val POSTS = "post"
     const val USER = "user"
+    const val FINGER_DRAW = "finger_draw"
 }

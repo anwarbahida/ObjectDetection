@@ -1,9 +1,7 @@
 package com.example.test.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -42,147 +40,189 @@ fun DrawerMenu(
         navController.navigate(Routers.DETECTION)
     }
 ) {
+
     ModalDrawerSheet(
         drawerContainerColor = DarkSurface,
-
-        modifier = Modifier.width(250.dp).fillMaxHeight()
-            .verticalScroll(rememberScrollState())
-
+        modifier = Modifier
+            .width(250.dp)
+            .fillMaxHeight()
     ) {
 
-        // ── Header ──────────────────────────────────
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(AccentPurple, AccentBlue)
+        Column(modifier = Modifier.fillMaxSize()) {
+
+            // ── Header ──────────────────────────────────
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(AccentPurple, AccentBlue)
+                        )
                     )
-                )
-                .padding(24.dp)
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .padding(24.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.2f)),
-                    contentAlignment = Alignment.Center,
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    AsyncImage(
-                        model = "https://randomuser.me/api/portraits/men/1.jpg",
-                        contentDescription = "Photo de profil",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
+
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        AsyncImage(
+                            model = "https://randomuser.me/api/portraits/men/1.jpg",
+                            contentDescription = "Photo de profil",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "B3G",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+
+                    Text(
+                        text = "Api : jsonplaceholder.typicode.com",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 12.sp
                     )
                 }
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "B3G",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // ── Items Scrollables ───────────────────────
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+            ) {
+
+                DrawerItem(
+                    icon    = Icons.Default.Home,
+                    label   = "Accueil",
+                    color   = AccentPurple,
+                    onClick = {
+                        onClose()
+                        navController.navigate(Routers.HOME) {
+                            popUpTo(Routers.HOME) { inclusive = true }
+                        }
+                    }
                 )
-                Text(
-                    text = "Api : jsonplaceholder.typicode.com",
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 12.sp
+
+//                DrawerItem(
+//                    icon    = Icons.Default.AccountBalance,
+//                    label   = "Contracter un prêt",
+//                    color   = AccentPurple,
+//                    onClick = {
+//                        onClose()
+//                        navController.navigate(Routers.PRET)
+//                    }
+//                )
+
+                DrawerItem(
+                    icon    = Icons.Default.People,
+                    label   = "Utilisateurs",
+                    color   = AccentPurple,
+                    onClick = {
+                        onClose()
+                        navController.navigate(Routers.USER)
+                    }
+                )
+
+                DrawerItem(
+                    icon    = Icons.Default.PhotoCamera,
+                    label   = "Détecter un Objet (photo)",
+                    color   = AccentBlue,
+                    onClick = {
+                        onClose()
+                        navController.navigate(Routers.DETECTION)
+                    }
+                )
+
+                DrawerItem(
+                    icon    = Icons.Default.Videocam,
+                    label   = "Détecter un Objet (vidéo)",
+                    color   = AccentBlue,
+                    onClick = {
+                        onClose()
+                        navController.navigate(Routers.DETECTIONS)
+                    }
+                )
+
+                DrawerItem(
+                    icon    = Icons.Default.Draw,
+                    label   = "Dessin par doigt",
+                    color   = AccentBlue,
+                    onClick = {
+                        onClose()
+                        navController.navigate(Routers.FINGER_DRAW)
+                    }
+                )
+
+                DrawerItem(
+                    icon    = Icons.Default.Person,
+                    label   = "Profile",
+                    color   = AccentGreen,
+                    onClick = {
+                        onClose()
+                        navController.navigate(Routers.PROFILE)
+                    }
+                )
+
+                DrawerItem(
+                    icon    = Icons.Default.Article,
+                    label   = "Posts",
+                    color   = AccentGreen,
+                    onClick = {
+                        onClose()
+                        navController.navigate(Routers.POSTS)
+                    }
+                )
+                DrawerItem(
+                    icon    = Icons.Default.Info,
+                    label   = "À propos",
+                    color   = AccentGreen,
+                    onClick = {
+                        onClose()
+                        navController.navigate(Routers.APROPOS)
+                    }
                 )
             }
+
+            // ── Footer (Déconnexion en bas) ─────────────
+            Divider(
+                color    = Color.White.copy(alpha = 0.1f),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+
+            DrawerItem(
+                icon    = Icons.Default.Logout,
+                label   = "Déconnexion",
+                color   = Color.Red,
+                onClick = {
+                    onClose()
+                    navController.navigate(Routers.LOGIN) {
+                        popUpTo(Routers.HOME) { inclusive = true }
+                    }
+                }
+            )
         }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // ── Items ────────────────────────────────────
-        DrawerItem(
-            icon    = Icons.Default.Home,
-            label   = "Accueil",
-            color   = AccentPurple,
-            onClick = {
-                onClose()
-                navController.navigate(Routers.HOME) {
-                    popUpTo(Routers.HOME) { inclusive = true }
-                }
-            }
-        )
-
-        DrawerItem(
-            icon    = Icons.Default.People,
-            label   = "Utilisateurs",
-            color   = AccentBlue,
-            onClick = { onClose()
-                navController.navigate(Routers.USER) }
-        )
-        DrawerItem(
-            icon    = Icons.Default.ImageSearch,
-            label   = "Détecter un Objet (photo)",
-            color   = AccentBlue,
-            onClick = {
-                onClose()
-                navController.navigate(Routers.DETECTION)
-            }
-        )
-        DrawerItem(
-            icon    = Icons.Default.DocumentScanner,
-            label   = "Détecter un Objet (védio)",
-            color   = AccentBlue,
-            onClick = {
-                onClose()
-                navController.navigate(Routers.DETECTIONS)
-            }
-        )
-        DrawerItem(
-            icon    = Icons.Default.Person,
-            label   = "Profile",
-            color   = AccentGreen,
-            onClick = {
-                onClose()
-                navController.navigate(Routers.PROFILE)
-            }
-        )
-        DrawerItem(
-            icon    = Icons.Default.Article,
-            label   = "Posts",
-            color   = AccentGreen,
-            onClick = {
-                onClose()
-                navController.navigate(Routers.POSTS)
-            }
-        )
-        DrawerItem(
-            icon    = Icons.Default.Info,
-            label   = "À propos",
-            color   = AccentGreen,
-            onClick = {
-                onClose()
-                navController.navigate(Routers.APROPOS)
-            }
-        )
-
-        Divider(
-            color    = Color.White.copy(alpha = 0.1f),
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
-
-        DrawerItem(
-            icon    = Icons.Default.Logout,
-            label   = "Déconnexion",
-            color   = Color.Red,
-            onClick = {
-                onClose()
-                navController.navigate(Routers.LOGIN) {
-                    popUpTo(Routers.HOME) { inclusive = true }
-                }
-            }
-        )
     }
 }
 
-// ─────────────────────────────────────────────────────────────────
-// DrawerItem avec effet hover au clic
-// ─────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// DrawerItem avec effet press
+// ─────────────────────────────────────────────────────────────
+
 @Composable
 fun DrawerItem(
     icon   : ImageVector,
@@ -190,11 +230,10 @@ fun DrawerItem(
     color  : Color,
     onClick: () -> Unit
 ) {
-    // ✅ Détecter si le bouton est pressé
+
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
-    // ✅ Couleur de fond dynamique selon l'état
     val backgroundColor = when {
         isPressed -> color.copy(alpha = 0.15f)
         else      -> Color.Transparent
@@ -205,14 +244,12 @@ fun DrawerItem(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                // ✅ L'icône s'illumine au clic
                 tint = if (isPressed) color else color.copy(alpha = 0.7f)
             )
         },
         label = {
             Text(
                 text = label,
-                // ✅ Le texte s'illumine au clic
                 color = if (isPressed) Color.White else TextPrimary,
                 fontWeight = if (isPressed) FontWeight.Bold else FontWeight.Medium
             )
@@ -220,9 +257,8 @@ fun DrawerItem(
         selected = false,
         onClick = onClick,
         modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
-        interactionSource = interactionSource, // ✅ Lier l'interactionSource
+        interactionSource = interactionSource,
         colors = NavigationDrawerItemDefaults.colors(
-            // ✅ Fond dynamique
             unselectedContainerColor = backgroundColor
         )
     )

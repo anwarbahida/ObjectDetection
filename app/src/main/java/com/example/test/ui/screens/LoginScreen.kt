@@ -35,6 +35,7 @@ import kotlinx.coroutines.launch
 import android.content.Context
 import android.provider.Settings.Global.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.tooling.preview.Preview
 import coil.compose.AsyncImage
 import com.example.test.ui.viewmodel.UserViewModel
 
@@ -46,6 +47,7 @@ private val AccentPurple   = Color(0xFF7C4DFF)
 private val AccentBlue     = Color(0xFF00B4D8)
 private val TextPrimary    = Color(0xFFE0E0E0)
 private val TextSecondary  = Color(0xFF9E9E9E)
+
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalAnimationApi::class)
 @Composable
@@ -187,7 +189,8 @@ fun LoginScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp)
-                            .offset(y = floatingOffset.dp),
+                            .offset(y = floatingOffset.dp)
+                        ,
                         shape = RoundedCornerShape(24.dp),
                         elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
                         colors = CardDefaults.cardColors(containerColor = DarkCard)
@@ -303,6 +306,7 @@ fun LoginScreen(
                                 Button(
                                     onClick = {
                                         buttonClicked = !buttonClicked
+                                        navController.navigate(Routers.HOME)
                                         scope.launch {
                                             try {
                                                 val users = RetrofitInstance.api.getUsers()

@@ -79,5 +79,17 @@ fun NavHost(modifier: Modifier = Modifier) {
             )
         }
 
+        composable(Routers.FINGER_DRAW) {
+            FingerDrawScreen(
+                navController = navControlleur
+            )
+        }
+
+        composable(Routers.PRET) {
+            ContracterPret(
+                navController = navControlleur
+            )
+        }
+
     }
 }
